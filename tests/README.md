@@ -1,12 +1,12 @@
 # テスト手順
 
-このフォルダには、配布用の `password_gen_custom.html` をQUnitで検証するブラウザテストがあります。
+このフォルダには、配布用の日本語単一HTML版と、そこから生成した英語単一HTML版およびChrome拡張機能版を検証するテストがあります。
 
 利用者がアプリを使用するときに、このフォルダやテスト用ツールは必要ありません。配布用の `password_gen_custom.html` は、これまでどおり単体で動作します。
 
 ## テスト対象
 
-`password-generator.test.html` は、1つ上の階層にある実際の `password_gen_custom.html` を読み込み、テストを2つのQUnitモジュールに分けて実行します。
+`password-generator.test.html` は、既定では1つ上の階層にある実際の `password_gen_custom.html` を読み込みます。URLの `target` パラメーターを指定すると、生成した英語版や `popup.html` にも同じQUnitテストを実行できます。テストは2つのQUnitモジュールに分かれています。
 
 ### 生成ロジック
 
@@ -19,11 +19,13 @@
 ### 画面操作
 
 - 初期設定で12文字のパスワードが表示されること
+- 対象言語のUIテキストが表示されること
 - スライダー変更が文字数表示と生成結果へ反映されること
 - 増減ボタンで文字数を変更できること
 - 文字種チェックの変更が生成結果へ反映されること
 - 先頭英字が有効な場合に小文字が自動的に有効になること
 - 記号をすべて選択または解除できること
+- 生成したパスワードをクリップボードへ渡せること
 - ライトテーマとダークテーマを切り替えられること
 
 テストには、`tests/lib/qunit`に同梱したQUnit 3.0.0を使用します。Node.js、インターネット接続、追加のライブラリインストールは不要です。
@@ -33,6 +35,7 @@
 ```text
 tests/
 ├─ README.md
+├─ extension-package.test.ps1     # ManifestやCSP要件の静的検査
 ├─ password-generator.test.html  # QUnitのテスト画面
 ├─ password-generator.test.js    # テストケース
 └─ lib/
@@ -57,11 +60,34 @@ py -m http.server 8000
 http://localhost:8000/tests/password-generator.test.html
 ```
 
+Chrome拡張機能版をテストする場合は、先にビルドしてから `target` パラメーター付きのURLを開きます。
+
+```powershell
+.\tools\build-extension.ps1
+```
+
+```text
+http://localhost:8000/tests/password-generator.test.html?target=../dist/password_gen_custom_en.html
+
+http://localhost:8000/tests/password-generator.test.html?target=../dist/chrome-extension/popup.html
+```
+
+`build-extension.ps1` は `extension-package.test.ps1` も実行し、次を検査します。
+
+- Manifest V3であること
+- `popup.html` と `popup.js` が存在すること
+- `popup.css` が存在し、ポップアップから読み込まれること
+- `popup.html` にインラインイベントハンドラーやインラインJavaScriptが残っていないこと
+- Manifestから参照するアイコンが存在すること
+- 日本語・英語の翻訳ファイルが存在し、翻訳キーが一致すること
+- HTMLとJavaScriptから参照する翻訳キーが定義されていること
+- ZIP直下に `manifest.json` があること
+
 テストが完了すると、QUnitの画面上部に結果が表示されます。
 
 ```text
-12 tests completed in ... seconds.
-12 passed, 0 skipped, 0 failed, and 0 todo.
+14 tests completed in ... seconds.
+14 passed, 0 skipped, 0 failed, and 0 todo.
 ```
 
 QUnit画面上部の「Module」から、生成ロジックまたは画面操作だけに絞って再実行できます。
