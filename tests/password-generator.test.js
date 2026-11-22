@@ -18,7 +18,11 @@ const DEFAULT_SYMBOLS = new Set(["!", "@", "#", "$", "%", "&", "*", "-", "_"]);
 function resetPasswordUI(app) {
   const doc = app.document;
   doc.getElementById("lengthSlider").value = "12";
-  doc.getElementById("lengthDisplay").textContent = "12文字";
+  doc.getElementById("lengthDisplay").textContent = app.getLocalizedMessage(
+    "lengthValue",
+    ["12"],
+    "12文字"
+  );
   doc.getElementById("useLower").checked = true;
   doc.getElementById("useUpper").checked = true;
   doc.getElementById("useNum").checked = true;
@@ -45,6 +49,9 @@ if (location.protocol === "file:") {
   });
   QUnit.start();
 } else {
+  const testTarget = new URLSearchParams(location.search).get("target") ||
+    "../password_gen_custom.html";
+
   // キャッシュ利用時もloadイベントを取り逃がさないよう、登録後にiframeを読み込む
   const appFrame = document.createElement("iframe");
   const appToggle = document.getElementById("appToggle");
@@ -129,6 +136,27 @@ if (location.protocol === "file:") {
           assert.strictEqual(selectedSymbols.length, 9, "初期記号は9種類");
         });
 
+        QUnit.test("対象言語のUIテキストが表示される", assert => {
+          const heading = app.document.querySelector('[data-i18n="passwordLength"]');
+          const expected = app.getLocalizedMessage(
+            "passwordLength",
+            [],
+            "パスワードの文字数"
+          );
+
+          assert.strictEqual(heading.textContent, expected, "文字数見出しを翻訳する");
+          assert.strictEqual(
+            app.document.documentElement.lang,
+            app.getInterfaceLanguage(),
+            "HTMLの言語属性を設定する"
+          );
+          assert.strictEqual(
+            app.document.getElementById("strengthText").textContent,
+            app.getLocalizedMessage("strengthVeryStrong", [], "非常に強力"),
+            "動的な強度表示を翻訳する"
+          );
+        });
+
         QUnit.test("スライダー変更が文字数表示と生成結果へ反映される", assert => {
           const doc = app.document;
           const slider = doc.getElementById("lengthSlider");
@@ -136,14 +164,18 @@ if (location.protocol === "file:") {
           slider.value = "20";
           slider.dispatchEvent(new app.Event("input", { bubbles: true }));
 
-          assert.strictEqual(doc.getElementById("lengthDisplay").textContent, "20文字", "表示を更新する");
+          assert.strictEqual(
+            doc.getElementById("lengthDisplay").textContent,
+            app.getLocalizedMessage("lengthValue", ["20"], "20文字"),
+            "表示を更新する"
+          );
           assert.strictEqual(doc.getElementById("passwordOutput").value.length, 20, "20文字を生成する");
         });
 
         QUnit.test("増減ボタンで文字数を変更できる", assert => {
           const doc = app.document;
-          const increaseButton = doc.querySelector('[aria-label="文字数を増やす"]');
-          const decreaseButton = doc.querySelector('[aria-label="文字数を減らす"]');
+          const increaseButton = doc.getElementById("increaseLengthBtn");
+          const decreaseButton = doc.getElementById("decreaseLengthBtn");
 
           increaseButton.click();
           assert.strictEqual(doc.getElementById("lengthSlider").value, "13", "＋ボタンで13文字になる");
@@ -181,6 +213,39 @@ if (location.protocol === "file:") {
           assert.strictEqual(doc.querySelectorAll(".sym-cb:checked").length, 21, "21種類すべて選択される");
         });
 
+        QUnit.test("生成したパスワードをコピーできる", async assert => {
+          const expected = app.document.getElementById("passwordOutput").value;
+          let copied = null;
+          const originalClipboard = Object.getOwnPropertyDescriptor(app.navigator, "clipboard");
+
+          Object.defineProperty(app.navigator, "clipboard", {
+            configurable: true,
+            value: {
+              writeText: value => {
+                copied = value;
+                return Promise.resolve();
+              }
+            }
+          });
+
+          try {
+            const succeeded = await app.copyPassword();
+            assert.true(succeeded, "コピー処理が成功する");
+            assert.strictEqual(copied, expected, "生成結果をクリップボードへ渡す");
+            assert.strictEqual(
+              app.document.getElementById("copyBtn").textContent,
+              app.getLocalizedMessage("copySuccess", [], "✓ 完了！"),
+              "コピー結果を翻訳する"
+            );
+          } finally {
+            if (originalClipboard) {
+              Object.defineProperty(app.navigator, "clipboard", originalClipboard);
+            } else {
+              delete app.navigator.clipboard;
+            }
+          }
+        });
+
         QUnit.test("テーマを切り替えられる", assert => {
           const doc = app.document;
           const themeButton = doc.getElementById("themeToggle");
@@ -198,6 +263,6 @@ if (location.protocol === "file:") {
 
     QUnit.start();
   }, { once: true });
-  appFrame.src = "../password_gen_custom.html";
+  appFrame.src = testTarget;
   document.body.appendChild(appFrame);
 }

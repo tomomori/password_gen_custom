@@ -1,6 +1,8 @@
 # PassGen Custom
 
-`password_gen_custom.html` だけで動作する、オフライン対応のパスワードジェネレータです。外部ライブラリや通信を使用せず、Web ブラウザ内でパスワードを生成します。
+`password_gen_custom.html` だけで動作する、オフライン対応のパスワードジェネレータです。外部ライブラリや通信を使用せず、Webブラウザ内でパスワードを生成します。
+
+単一HTML版に加えて、Chromeのツールバーから同じ画面と機能を利用できるManifest V3拡張機能も生成できます。日本語の単一HTML版が実装の原本であり、英語の単一HTML版と拡張機能版はビルドスクリプトによって生成されます。
 
 ## スクリーンショット
 
@@ -26,6 +28,8 @@
 - 生成したパスワードをクリップボードへコピー可能
 - ライト／ダークテーマを切り替え可能
 - PCとスマートフォンの表示に対応
+- Chrome拡張機能版も提供可能
+- 日本語・英語のUIに対応（拡張機能版はChromeの表示言語に合わせて自動選択）
 
 ## 使い方
 
@@ -45,6 +49,16 @@
 6. 「コピー」を押すと、生成結果をクリップボードへコピーできます。
 
 インストールやWebサーバーの起動は不要です。HTMLファイルを直接開くだけで使用できます。
+
+ビルド後の `dist/password_gen_custom_en.html` は、英語UIの単一HTML版です。英語の翻訳データもファイル内に埋め込まれているため、このファイルだけでオフライン利用できます。
+
+### Chrome拡張機能として使用する
+
+開発版をChromeへ読み込む場合は、後述の手順で拡張機能をビルドします。その後、Chromeで `chrome://extensions` を開き、デベロッパーモードを有効にして「パッケージ化されていない拡張機能を読み込む」から `dist/chrome-extension` を選択します。
+
+通常の利用者向けには、Chromeウェブストアで公開した拡張機能を使用します。GitHub Releaseへ添付したZIPは、内容確認や開発用の配布物です。
+
+拡張機能には日本語と英語の両方が含まれ、Chromeの表示言語が日本語なら日本語、それ以外なら既定の英語UIを表示します。手動の言語切り替え設定はありません。
 
 ## 選択できる記号
 
@@ -90,21 +104,92 @@
 
 ## テスト
 
+### Chrome拡張機能のビルド
+
+PowerShellで次のコマンドを実行します。
+
+```powershell
+.\tools\build-extension.ps1
+```
+
+次のファイルが `dist` に生成されます。
+
+```text
+dist/
+├─ chrome-extension/                    # Chromeへ読み込む展開済みファイル
+├─ password_gen_custom_en.html          # 英語・単一HTML版
+└─ passgen-custom-chrome-v1.1.0.zip     # Chromeウェブストア提出用
+```
+
+ビルド時には、Manifest V3、必要ファイル、アイコン、インラインJavaScriptの有無、ZIP直下の `manifest.json` を自動検査します。アイコンを再生成する場合は、次を実行します。
+
+```powershell
+.\tools\generate-extension-icons.ps1
+```
+
+`dist` は生成物のためGit管理対象外です。Chromeウェブストアへ提出するZIPとGitHub Releaseへ添付する拡張機能用ZIPには、同じ生成物を使用します。
+
+### QUnitテスト
+
 開発時はリポジトリのルートディレクトリで次のコマンドを実行します。
 
 ```powershell
 py -m http.server 8000
 ```
 
-続いて、ブラウザで `http://localhost:8000/tests/password-generator.test.html` を開きます。テストは同梱したQUnitを使用し、配布用の `password_gen_custom.html` そのものを読み込みます。Node.js、インターネット接続、追加のライブラリインストールは不要です。
+続いて、ブラウザで以下を開きます。
 
-テストは「生成ロジック」5件と「画面操作」7件に分類されています。
+```text
+# 単一HTML版
+http://localhost:8000/tests/password-generator.test.html
+
+# 英語・単一HTML版
+http://localhost:8000/tests/password-generator.test.html?target=../dist/password_gen_custom_en.html
+
+# 生成済みChrome拡張機能版
+http://localhost:8000/tests/password-generator.test.html?target=../dist/chrome-extension/popup.html
+```
+
+テストは同梱したQUnitを使用し、同じテストケースを日本語単一版、英語単一版、拡張機能版に適用します。Node.js、インターネット接続、追加のライブラリインストールは不要です。
+
+テストは「生成ロジック」5件と「画面操作」9件に分類されています。
 
 ブラウザの同一オリジン制約があるため、テスト用HTMLは `file://` から直接開かず、ローカルHTTPサーバーを経由してください。
 
 利用者がアプリを実行する際は、これまでどおり `password_gen_custom.html` だけで動作します。
 
 Live Server系拡張機能を使う方法やトラブルシューティングを含む詳細は、[`tests/README.md`](tests/README.md) を参照してください。
+
+## リリース
+
+リリース時は、HTMLのタイトルと `chrome-extension/manifest.json` のバージョンを同じ値へ更新してからビルドします。例えばバージョン1.1.0では、Gitタグを `v1.1.0` とし、GitHub Releaseへ次を添付します。
+
+```text
+password_gen_custom.html
+password_gen_custom_en.html
+passgen-custom-chrome-v1.1.0.zip
+```
+
+Chromeウェブストアへは、GitHub Releaseへ添付するものと同一の `passgen-custom-chrome-v1.1.0.zip` を提出します。リポジトリ全体をストアへ提出しないでください。
+
+## 開発用ファイル構成
+
+```text
+password_gen_custom.html          # 単独で動作する原本
+chrome-extension/
+├─ manifest.json                 # Manifest V3
+├─ popup.css                     # 780×600pxのポップアップ専用表示
+├─ _locales/
+│  ├─ ja/messages.json           # 日本語UI
+│  └─ en/messages.json           # 英語UI
+└─ images/                       # 拡張機能アイコン
+tools/
+├─ build-extension.ps1           # popup.html、popup.js、ZIPを生成
+└─ generate-extension-icons.ps1  # PNGアイコンを再生成
+tests/
+├─ password-generator.test.js    # Web版・拡張機能版で共通のQUnitテスト
+└─ extension-package.test.ps1    # 拡張機能パッケージの静的検査
+```
 
 ## ライセンス
 
